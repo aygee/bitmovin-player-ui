@@ -108,6 +108,8 @@ export class SeekBar extends Component<SeekBarConfig> {
   private smoothPlaybackPositionUpdater: Timeout;
   private pausedTimeshiftUpdater: Timeout;
 
+  private isUserSeeking = false;
+
   private seekBarEvents = {
     /**
      * Fired when a scrubbing seek operation is started.
@@ -203,12 +205,11 @@ export class SeekBar extends Component<SeekBarConfig> {
     });
 
     let isPlaying = false;
-    let isUserSeeking = false;
     let isPlayerSeeking = false;
 
     // Update playback and buffer positions
     let playbackPositionHandler = (event: PlayerEventBase = null, forceUpdate: boolean = false) => {
-      if (isUserSeeking) {
+      if (this.isUserSeeking) {
         // We caught a seek preview seek, do not update the seekbar
         return;
       }
@@ -302,7 +303,7 @@ export class SeekBar extends Component<SeekBarConfig> {
     player.on(player.exports.PlayerEvent.TimeShifted, onPlayerSeeked);
 
     this.onSeek.subscribe((sender) => {
-      isUserSeeking = true; // track seeking status so we can catch events from seek preview seeks
+      this.isUserSeeking = true; // track seeking status so we can catch events from seek preview seeks
 
       // Notify UI manager of started seek
       uimanager.onSeek.dispatch(sender);
@@ -314,7 +315,7 @@ export class SeekBar extends Component<SeekBarConfig> {
         // Pause playback while seeking
         if (isPlaying) {
           // use a different issuer here, as play/pause on seek is not "really" triggerd by the user
-          player.pause('ui-seek');
+          // @todo: make this configurable -- player.pause('ui-seek');
         }
       }
 
@@ -325,9 +326,9 @@ export class SeekBar extends Component<SeekBarConfig> {
     });
 
     // Rate-limited scrubbing seek
-    this.onSeekPreview.subscribeRateLimited(this.seekWhileScrubbing, 200);
+    // @todo: make this configurable -- this.onSeekPreview.subscribeRateLimited(this.seekWhileScrubbing, 200);
     this.onSeeked.subscribe((sender, percentage) => {
-      isUserSeeking = false;
+      this.isUserSeeking = false;
 
       // Do the seek
       this.seek(percentage);
@@ -467,6 +468,11 @@ export class SeekBar extends Component<SeekBarConfig> {
     let currentTimeUpdateDeltaSecs = updateIntervalMs / 1000;
 
     this.smoothPlaybackPositionUpdater = new Timeout(updateIntervalMs, () => {
+      if (this.isUserSeeking) {
+        // We caught a seek preview seek, do not update the seekbar
+        return;
+      }
+
       currentTimeSeekBar += currentTimeUpdateDeltaSecs;
 
       try {
